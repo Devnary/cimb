@@ -26,4 +26,4 @@ Technical information and explanations
 ```
 
 #### Convertion
-The image is divided into blocks of 20x40. Then compared each pattern separately with each colors and the previous pattern, 6 times.
+The image is divided into blocks of 20x40. Then compared to each pattern separately with each colors and the previous pattern, 6 times.
