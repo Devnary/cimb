@@ -52,27 +52,29 @@ void loadPPM(u_int8_t* path) {
         exit(1);
     }
     
-    fread(ppmS, 2, 1, f);
+    fread(ppmS, 3, 1, f);
     if (ppmS[0] != 'P' || ppmS[1] != '6') {
         
         printf("%s is not a ppm (P6) file.\n", path);
         exit(1);
     }
     
-    for (int8_t i = -1, j = 0, c; i < 3;) { // Read PPM header
-        
+    for (int8_t i = 0, c; i < 4;) { // Read PPM width
         c = fgetc(f);
-        if (c > 32) {
-            
-            ppmI[i] += (c - 48) * (u_int16_t[4]){1000, 100, 10, 1}[j];
-            j++;
-            continue;
-        }
-        
-        for (u_int8_t k = 0; k < 3 && j < 4; ppmI[i] *= .1,j++,k++);
-        
-        i++;
-        j = 0;
+        if (c == 32) break;
+        ppmI[0] = ppmI[0] * 10 + c - 48;
+    }
+    
+    for (int8_t i = 0, c; i < 4;) { // Read PPM height
+        c = fgetc(f);
+        if (c == 10) break;
+        ppmI[1] = ppmI[1] * 10 + c - 48;
+    }
+    
+    for (int8_t i = 0, c; i < 3;) { // Read PPM color depth
+        c = fgetc(f);
+        if (c == 10) break;
+        ppmI[2] = ppmI[2] * 10 + c - 48;
     }
     
     istrI[0] = ppmI[0],
@@ -90,7 +92,7 @@ void loadPPM(u_int8_t* path) {
 
 void exportPPM(u_int8_t* buffer, u_int32_t w, u_int32_t h) {
     
-    FILE* f = fopen("out.ppm", "wb");
+    FILE* f = fopen("preview.ppm", "wb");
     fprintf(f, "P6\n%d %d\n255\n", w, h);
     fclose(f);
     
@@ -100,7 +102,7 @@ void exportPPM(u_int8_t* buffer, u_int32_t w, u_int32_t h) {
     for (u_int32_t i = 0; i < size3; buf[i] = buffer[i + i / 3],i++); // RGBA to RGB
     
     
-    f = fopen("out.ppm", "a");
+    f = fopen("preview.ppm", "a");
     
     for (u_int32_t i = 0; i < 3; i++)
         fwrite(buf + i * size, size, 1, f);
@@ -159,7 +161,7 @@ void convert() {
                 error = 0;
                 clU8Arr(currentPattern, patternSize);
             
-                for (u_int32_t j = 0; j < patternSize; j += 4) {
+                for (u_int32_t j = 0; j < patternSize; j += 4) { // Process base color and quatize error
                     
                     float R = (float)ptrnV[j    ] * 0.00392156862745098 * palette[i    ],
                           G = (float)ptrnV[j + 1] * 0.00392156862745098 * palette[i + 1],
@@ -180,17 +182,14 @@ void convert() {
                 }
             }
             
-            for (u_int32_t n = 1; n < patternsMax + 1; n++) { // adding patterns
-                
-                bestError = 4294967295;
-                
-                for (u_int32_t l = 1; l < ptrnI[0]; l++)
-                    for (u_int32_t i = 0; i < paletteSize; i += 3) {
+            for (u_int32_t n = 1; n < patternsMax + 1; n++) // Adding patterns
+                for (u_int32_t l = 1; l < ptrnI[0]; l++) // Patterns iterations
+                    for (u_int32_t i = 0; i < paletteSize; i += 3) { // Colors iterations
                         
                         error = 0;
                         cpU8Arr(currentPattern, lastPatterns[n - 1], patternSize);
                         
-                        for (u_int32_t j = 0; j < patternSize; j += 4) {
+                        for (u_int32_t j = 0; j < patternSize; j += 4) { // Process pattern&color and quatize error
                             
                             offset = l * patternSize;
                             
@@ -210,11 +209,9 @@ void convert() {
                             
                             bestError = error;
                             cpU8Arr(lastPatterns[n], currentPattern, patternSize);
+                            patternDone = n;
                         }
                     }
-                
-                patternDone++;
-            }
             
             setPPMChunk(lastPatterns[patternDone], x, y, ptrnI[1], ptrnI[2]);
         }
