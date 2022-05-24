@@ -9,6 +9,9 @@ u_int8_t* ptrnV;
 u_int16_t ppmI[3];
 u_int8_t* ppmV;
 
+u_int16_t istrI[2];
+u_int8_t* istrV;
+
 void loadPTRN(u_int8_t* path) {
     
     u_int8_t ptrnS[4];
@@ -53,10 +56,10 @@ void loadPPM(u_int8_t* path) {
     if (ppmS[0] != 'P' || ppmS[1] != '6') {
         
         printf("%s is not a ppm (P6) file.\n", path);
-        exit(0);
+        exit(1);
     }
     
-    for (int8_t i = -1, j = 0, c; i < 3;) {
+    for (int8_t i = -1, j = 0, c; i < 3;) { // Read PPM header
         
         c = fgetc(f);
         if (c > 32) {
@@ -66,21 +69,23 @@ void loadPPM(u_int8_t* path) {
             continue;
         }
         
-        for (u_int8_t k = 0; k < 3 && j < 4; j++,k++)
-            ppmI[i] *= (float[3]){.1, .1, .1}[k];
+        for (u_int8_t k = 0; k < 3 && j < 4; ppmI[i] *= .1,j++,k++);
         
         i++;
         j = 0;
     }
     
+    istrI[0] = ppmI[0],
+    istrI[1] = ppmI[1];
+    istrV = malloc(istrI[0] / 20 * istrI[1] / 40 * 15); // 15 = 6 (12) patterns+colors + 1 base color + pos
+    
     printf("ppm %d %dx%d\n", ppmI[2],ppmI[0],ppmI[1]);
     
-    u_int32_t size4 = ppmI[0] * ppmI[1] * 4,
-              size3 = ppmI[0] * ppmI[1] * 3;
-    ppmV = malloc(size4);
+    u_int32_t size3 = ppmI[0] * ppmI[1] * 3;
+    ppmV = malloc(ppmI[0] * ppmI[1] * 4);
     
-    for (u_int32_t i = 0; i < size3; i += 3, ppmV[i+i/3+3] = 255) // RGB to RGBA
-        fread(ppmV + i + i/3, 3, 1, f);
+    for (u_int32_t i = 0; i < size3; i += 3, ppmV[i + i / 3 + 3] = 255) // RGB to RGBA
+        fread(ppmV + i + i / 3, 3, 1, f);
 }
 
 void exportPPM(u_int8_t* buffer, u_int32_t w, u_int32_t h) {
@@ -92,7 +97,7 @@ void exportPPM(u_int8_t* buffer, u_int32_t w, u_int32_t h) {
     u_int32_t size  = w * h,
               size3 = w * h * 3;
     u_int8_t buf[size3];
-    for (u_int32_t i = 0; i < size3; buf[i] = buffer[i + i/3],i++); // RGBA to RGB
+    for (u_int32_t i = 0; i < size3; buf[i] = buffer[i + i / 3],i++); // RGBA to RGB
     
     
     f = fopen("out.ppm", "a");
@@ -137,9 +142,9 @@ void convert() {
     
     u_int32_t paletteSize = sizeof(palette),
               patternSize = ptrnI[1] * ptrnI[2] * 4,
-              patternsMax = 7,
+              patternsMax = 6,
               patternDone, error, bestError, offset;
-    u_int8_t chunk[patternSize], currentPattern[patternSize], lastPatterns[patternsMax][patternSize];
+    u_int8_t chunk[patternSize], currentPattern[patternSize], lastPatterns[patternsMax + 1][patternSize];
     
     for (u_int32_t y = 0; y < ppmI[1]; y += 40) {
         for (u_int32_t x = 0; x < ppmI[0]; x += 20) {
@@ -175,7 +180,7 @@ void convert() {
                 }
             }
             
-            for (u_int32_t n = 1; n < patternsMax; n++) { // adding patterns
+            for (u_int32_t n = 1; n < patternsMax + 1; n++) { // adding patterns
                 
                 bestError = 4294967295;
                 
@@ -225,7 +230,7 @@ int main(int argc, char** argv) {
     if (argc < 3) {
         
         printf("converter [ptrn] [ppm]\n");
-        return 0; // Change it ?
+        return 1;
     }
     
     loadPTRN(argv[1]);
@@ -235,6 +240,7 @@ int main(int argc, char** argv) {
     
     free(ptrnV);
     free(ppmV);
+    free(istrV);
     
     return 0;
 }
