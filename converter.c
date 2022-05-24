@@ -3,13 +3,13 @@
 
 u_int8_t palette[48] = {0xbd,0xc1,0xc1, 0xbd,0x61,0x15, 0x97,0x3a,0x8f, 0x2b,0x88,0xa5, 0xc0,0xa3,0x2d, 0x61,0x96,0x15, 0xb7,0x69,0x80, 0x35,0x3c,0x3e, 0x76,0x76,0x72, 15,0x76,0x76, 0x68,0x25,0x8b, 0x2c,0x32,0x81, 0x63,0x3f,0x25, 0x47,0x5e,0, 0x85,0x22,0x1c, 0x15,0x15,0x17};
 
-u_int8_t  ptrnI[3];
+u_int8_t  ptrnI[3]; // PTRN (patterns file)
 u_int8_t* ptrnV;
 
-u_int16_t ppmI[3];
+u_int16_t ppmI[3]; // PPM (P6 image file)
 u_int8_t* ppmV;
 
-u_int16_t istrI[2];
+u_int16_t istrI[2]; //ISTR (ID patterns&colors to string for converting to commands
 u_int8_t* istrV;
 
 void loadPTRN(u_int8_t* path) {
@@ -70,6 +70,13 @@ void loadPPM(u_int8_t* path) {
         if (c == 10) break;
         ppmI[1] = ppmI[1] * 10 + c - 48;
     }
+    
+    if (ppmI[0] % 20 > 0 || ppmI[1] % 40 > 0) {
+        
+        printf("Input image width has to be multiple of 20, and height multiple of 40.\n");
+        exit(1);
+    }
+        
     
     for (int8_t i = 0, c; i < 3;) { // Read PPM color depth
         c = fgetc(f);
@@ -146,7 +153,7 @@ void convert() {
               patternSize = ptrnI[1] * ptrnI[2] * 4,
               patternsMax = 6,
               patternDone, error, bestError, offset;
-    u_int8_t chunk[patternSize], currentPattern[patternSize], lastPatterns[patternsMax + 1][patternSize];
+    u_int8_t chunk[patternSize], currentPattern[patternSize], bestPattern[patternSize];
     
     for (u_int32_t y = 0; y < ppmI[1]; y += 40) {
         for (u_int32_t x = 0; x < ppmI[0]; x += 20) {
@@ -163,14 +170,14 @@ void convert() {
             
                 for (u_int32_t j = 0; j < patternSize; j += 4) { // Process base color and quatize error
                     
-                    float R = (float)ptrnV[j    ] * 0.00392156862745098 * palette[i    ],
-                          G = (float)ptrnV[j + 1] * 0.00392156862745098 * palette[i + 1],
-                          B = (float)ptrnV[j + 2] * 0.00392156862745098 * palette[i + 2],
-                          A = (float)ptrnV[j + 3] * 0.00392156862745098;
+                    float R = (float)ptrnV[j    ] * .00392156862745098 * (float)palette[i    ], // .00392156862745098 = 1 / 255
+                          G = (float)ptrnV[j + 1] * .00392156862745098 * (float)palette[i + 1],
+                          B = (float)ptrnV[j + 2] * .00392156862745098 * (float)palette[i + 2],
+                          A = (float)ptrnV[j + 3] * .00392156862745098;
                     
-                    currentPattern[j    ] = R * A + (float)currentPattern[j    ] * (1 - A),
-                    currentPattern[j + 1] = G * A + (float)currentPattern[j + 1] * (1 - A),
-                    currentPattern[j + 2] = B * A + (float)currentPattern[j + 2] * (1 - A);
+                    currentPattern[j    ] = R * A + (float)currentPattern[j    ] * (1. - A),
+                    currentPattern[j + 1] = G * A + (float)currentPattern[j + 1] * (1. - A),
+                    currentPattern[j + 2] = B * A + (float)currentPattern[j + 2] * (1. - A);
                     
                     error += abs(currentPattern[j] - chunk[j]) + abs(currentPattern[j + 1] - chunk[j + 1]) + abs(currentPattern[j + 2] - chunk[j + 2]);
                 }
@@ -178,7 +185,7 @@ void convert() {
                 if (error < bestError) {
                     
                     bestError = error;
-                    cpU8Arr(lastPatterns[0], currentPattern, patternSize);
+                    cpU8Arr(bestPattern, currentPattern, patternSize);
                 }
             }
             
@@ -187,20 +194,20 @@ void convert() {
                     for (u_int32_t i = 0; i < paletteSize; i += 3) { // Colors iterations
                         
                         error = 0;
-                        cpU8Arr(currentPattern, lastPatterns[n - 1], patternSize);
+                        cpU8Arr(currentPattern, bestPattern, patternSize);
                         
                         for (u_int32_t j = 0; j < patternSize; j += 4) { // Process pattern&color and quatize error
                             
                             offset = l * patternSize;
                             
-                            float R = (float)ptrnV[j + offset    ] * 0.00392156862745098 * palette[i    ],
-                                  G = (float)ptrnV[j + offset + 1] * 0.00392156862745098 * palette[i + 1],
-                                  B = (float)ptrnV[j + offset + 2] * 0.00392156862745098 * palette[i + 2],
-                                  A = (float)ptrnV[j + offset + 3] * 0.00392156862745098;
+                            float R = (float)ptrnV[j + offset    ] * .00392156862745098 * (float)palette[i    ],
+                                  G = (float)ptrnV[j + offset + 1] * .00392156862745098 * (float)palette[i + 1],
+                                  B = (float)ptrnV[j + offset + 2] * .00392156862745098 * (float)palette[i + 2],
+                                  A = (float)ptrnV[j + offset + 3] * .00392156862745098;
                             
-                            currentPattern[j    ] = R * A + (float)currentPattern[j    ] * (1 - A),
-                            currentPattern[j + 1] = G * A + (float)currentPattern[j + 1] * (1 - A),
-                            currentPattern[j + 2] = B * A + (float)currentPattern[j + 2] * (1 - A);
+                            currentPattern[j    ] = R * A + (float)currentPattern[j    ] * (1. - A),
+                            currentPattern[j + 1] = G * A + (float)currentPattern[j + 1] * (1. - A),
+                            currentPattern[j + 2] = B * A + (float)currentPattern[j + 2] * (1. - A);
                             
                             error += abs(currentPattern[j] - chunk[j]) + abs(currentPattern[j + 1] - chunk[j + 1]) + abs(currentPattern[j + 2] - chunk[j + 2]);
                         }
@@ -208,15 +215,15 @@ void convert() {
                         if (error < bestError) {
                             
                             bestError = error;
-                            cpU8Arr(lastPatterns[n], currentPattern, patternSize);
+                            cpU8Arr(bestPattern, currentPattern, patternSize);
                             patternDone = n;
                         }
                     }
             
-            setPPMChunk(lastPatterns[patternDone], x, y, ptrnI[1], ptrnI[2]);
+            setPPMChunk(bestPattern, x, y, ptrnI[1], ptrnI[2]);
         }
         
-        printf("%d/%d\n", y + ptrnI[0]-1, ppmI[1]);
+        printf("%d/%d\n", y + ptrnI[2], ppmI[1]);
     }
     
     exportPPM(ppmV, ppmI[0], ppmI[1]);
